@@ -1,5 +1,16 @@
 name: Presubmit
-on: [push, pull_request]
+on:
+  push:
+    branches: [devel]
+  pull_request:
+    branches: [devel]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        type: boolean
+        description: "Run the build with tmate debugging enabled"
+        required: false
+        default: true
 
 env:
   APT_PACKAGE: gcc g++ ruby ruby-dev elfutils libelf-dev libpopt-dev libdw-dev libprotobuf-dev protobuf-compiler valgrind libglib2.0-dev libnuma-dev liburcu-dev
@@ -185,6 +196,9 @@ jobs:
         with:
           path: ~/efficios_dep/
           key: ${{ runner.os }}-build-${{ env.cache-name }}
+      - name: Setup tmate session for debugging failures
+        uses: mxschmitt/action-tmate@v3.13
+        if: ${{ inputs.debug_enabled }}
       - uses: actions/download-artifact@v4
         with:
           name: thapi-bin
@@ -199,6 +213,9 @@ jobs:
       - name: Integration test
         run: |
           bats integration_tests/
+      - name: Block to allow inspecting failures
+        run: sleep 1800
+        if: ${{ failure() && inputs.debug_enabled }}
 
   build-in-tree-and-check:
     needs: [efficios_dep, pre_job]
