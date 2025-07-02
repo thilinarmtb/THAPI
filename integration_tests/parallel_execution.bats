@@ -3,6 +3,7 @@
 setup_file() {
    export THAPI_HOME=$PWD
    export IPROF=$THAPI_BIN_DIR/iprof
+   export BBT=$THAPI_BIN_DIR/babeltrace_thapi
    export MPIRUN=${MPIRUN:-mpirun}
 }
 
@@ -16,6 +17,23 @@ teardown_file() {
 
 @test "iprof_fs" {
    THAPI_SYNC_DAEMON=fs THAPI_JOBID=0 timeout 40s $MPIRUN -n 2 $IPROF --debug 0 -- $THAPI_TEST_BIN
+}
+
+calc_iprof_vpids() {
+  THAPI_SYNC_DAEMON=$1 THAPI_JOBID=0 timeout 40s $MPIRUN -n 2 $IPROF --no-analysis --trace-output $1_traces -- ./mpi_helloworld > /dev/null
+  vpids=$($BBT -c ./$1_traces | sed -e "s/ - /, /g" | sed -e "s/,/\n/g" | grep vpid | sort | uniq | wc -l)
+  rm -rf $1_traces
+  echo $vpids
+}
+
+@test "iprof_vpids" {
+  mpicc ./integration_tests/mpi_helloworld.c -o mpi_helloworld
+
+  mpi_vpids=$(calc_iprof_vpids mpi)
+  [ "$mpi_vpids" -eq 2 ]
+
+  fs_vpids=$(calc_iprof_vpids fs)
+  [ "$fs_vpids" -eq 2 ]
 }
 
 @test "sync_daemon_fs_launching_mpi_app" {
